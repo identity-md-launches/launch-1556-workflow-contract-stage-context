@@ -188,15 +188,65 @@ contract MoonRewardsEdgesTest is MoonTestBase {
     }
 
     /// forge-config: default.fuzz.runs = 1000
-    function testFuzz_postOfficeRejectsShortAndOversizedReturnData(uint8 lengthSeed) public {
-        // Every length from 0 through 128 except the canonical 32-byte ABI boolean.
-        uint256 length = uint256(lengthSeed) % 128;
-        if (length >= 32) ++length;
+    function testFuzz_postOfficeRejectsResponsesShorterThanOneWord(uint8 lengthSeed) public {
+        // Every length from 0 through 31, with a would-be `true` in the last byte present.
+        uint256 length = uint256(lengthSeed) % 32;
         bytes memory response = new bytes(length);
-        if (length > 31) response[31] = 0x01;
+        if (length > 0) response[length - 1] = 0x01;
         _fundInitial();
         vm.mockCall(address(postOffice), abi.encodeWithSignature("offices(address)", alice), response);
         _assertOfficeFailure();
+    }
+
+    /// forge-config: default.fuzz.runs = 1000
+    function testFuzz_postOfficeDecidesOnlyOnTheFirstWordWhateverFollows(
+        uint8 extraLengthSeed,
+        bytes32 trailing,
+        uint256 firstWord
+    ) public {
+        // The live getter returns the nine-word Office struct; any length of at least one word is read
+        // from its first word only, and trailing bytes (even partial words) must not change the decision.
+        uint256 extra = uint256(extraLengthSeed) % 300;
+        firstWord = bound(firstWord, 0, 4);
+        if (firstWord == 3) firstWord = type(uint256).max;
+        if (firstWord == 4) firstWord = 1 << 255;
+        bytes memory response = new bytes(32 + extra);
+        assembly {
+            mstore(add(response, 32), firstWord)
+        }
+        for (uint256 i; i < extra; ++i) {
+            response[32 + i] = trailing[i % 32];
+        }
+        _fundInitial();
+        vm.mockCall(address(postOffice), abi.encodeWithSignature("offices(address)", alice), response);
+        MoonRewards.MissionVoucher memory voucher = _voucher(alice, 500 ether, 1);
+        bytes memory signature = _signature(rewards, voucher, signerKey);
+        if (firstWord == 1) {
+            uint256 before = token.balanceOf(alice);
+            vm.prank(alice);
+            rewards.claim(voucher, signature);
+            assertTrue(rewards.usedNonces(1));
+            assertEq(token.balanceOf(alice), before + 500 ether);
+            assertEq(token.balanceOf(address(rewards)), INITIAL_FUNDING - 500 ether);
+        } else if (firstWord == 0) {
+            vm.expectRevert(MoonRewards.PostOfficeRequired.selector);
+            vm.prank(alice);
+            rewards.claim(voucher, signature);
+            assertFalse(rewards.usedNonces(1));
+            assertEq(token.balanceOf(address(rewards)), INITIAL_FUNDING);
+        } else {
+            _assertOfficeFailure();
+        }
+    }
+
+    function test_postOfficeLiveStructWithOpenButOtherwiseEmptyFieldsIsAccepted() public {
+        // Only `open` matters: zero tier, power and an unset referrer do not block the claim.
+        _fundInitial();
+        bytes memory response = abi.encode(true, uint8(0), uint8(0), uint16(0), uint64(0), address(0), 0, 0, 0);
+        assertEq(response.length, 288);
+        vm.mockCall(address(postOffice), abi.encodeWithSignature("offices(address)", alice), response);
+        _claim(alice, 500 ether, 1);
+        assertTrue(rewards.usedNonces(1));
     }
 
     function test_postOfficeCannotMutateDuringEligibilityCheck() public {

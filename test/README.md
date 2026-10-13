@@ -16,7 +16,7 @@ signing keys are local Foundry fixtures. No production configuration is changed.
 
 | File | Additional checks |
 | --- | --- |
-| `MoonRewardsEdges.t.sol` | Funding/claim event accounting; zero and maximum inputs; funding permit rollback and retry; expired-permit fallback restricted by allowance; zero and maximum voucher nonces; global daily cap exceeded by one wei; noncanonical, short, oversized and state-writing PostOffice responses; failed claims before direct-donation activation. |
+| `MoonRewardsEdges.t.sol` | Funding/claim event accounting; zero and maximum inputs; funding permit rollback and retry; expired-permit fallback restricted by allowance; zero and maximum voucher nonces; global daily cap exceeded by one wei; noncanonical, short (under one word) and state-writing PostOffice responses; responses of one word or longer, including the live nine-word `Office` struct, decided only by their first word; failed claims before direct-donation activation. |
 | `MoonShopAtomicity.t.sol` | Rejected mint rolls back reward activation; failed approval creation and cleanup roll back every payment; creator callbacks cannot reenter item configuration or permit buys; forwarding an NFT then rejecting rolls back the nested transfer; batch-transfer atomicity and operator revocation; split-order rounding; item ID zero and purchase events. |
 | `invariant/MoonLifecycle.invariant.t.sol` | Four players and three editable items, initially below the funding threshold. Random sequences combine approval/permit deposits, direct donations, purchases, item edits, authorized/unauthorized transfers, claims, pause and time advancement. |
 
@@ -60,7 +60,7 @@ invariant cannot saturate that cap within one day.
 ## Limits
 
 The PostOffice integration is exercised offline at its specified address, with
-both the documented boolean interface and adversarial responses. Live Robinhood
+the live nine-word `Office` struct shape, the one-word boolean shape and adversarial responses. Live Robinhood
 Chain code and game-server operation remain unverified by this suite. Tokens
 with approval faults and contract receivers are isolated fault-injection fixtures;
 the stateful economy uses the actual fixed-supply launch token throughout, without
