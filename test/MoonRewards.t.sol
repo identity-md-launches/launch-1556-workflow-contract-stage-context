@@ -3,7 +3,7 @@ pragma solidity 0.8.26;
 
 import {MoonTestBase} from "./helpers/MoonTestBase.sol";
 import {MoonRewards} from "../src/MoonRewards.sol";
-import {AdversarialToken} from "./helpers/Mocks.sol";
+import {AdversarialToken, BoolPostOfficeMock} from "./helpers/Mocks.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract MoonRewardsTest is MoonTestBase {
@@ -239,6 +239,44 @@ contract MoonRewardsTest is MoonTestBase {
         postOffice.setOffice(alice, true);
         _claim(alice, 500 ether, 1);
         postOffice.setOffice(alice, false);
+        _expectFailure(MoonRewards.PostOfficeRequired.selector, _voucher(alice, 500 ether, 2), signerKey, alice);
+    }
+
+    function test_postOfficeLiveStructShapeIsReadFromItsFirstWord() public {
+        _fundInitial();
+        // The fixture at POST_OFFICE returns the live nine-word Office struct, not a lone bool.
+        (bool ok, bytes memory data) =
+            address(postOffice).staticcall(abi.encodeWithSignature("offices(address)", alice));
+        assertTrue(ok);
+        assertEq(data.length, 288);
+        assertEq(uint256(bytes32(data)), 1);
+        _claim(alice, 500 ether, 1);
+        assertEq(token.balanceOf(alice), 100_000 ether + 500 ether);
+
+        // A closed office in the same shape is refused for the right reason.
+        postOffice.setOffice(alice, false);
+        (, data) = address(postOffice).staticcall(abi.encodeWithSignature("offices(address)", alice));
+        assertEq(data.length, 288);
+        assertEq(uint256(bytes32(data)), 0);
+        _expectFailure(MoonRewards.PostOfficeRequired.selector, _voucher(alice, 500 ether, 2), signerKey, alice);
+
+        // A non-canonical first word is unavailable even when the rest of the struct is present.
+        bytes memory malformed = abi.encode(uint256(2), 3, 6, 8, 0, address(0), 0x90c, 1 ether, 1);
+        vm.mockCall(address(postOffice), abi.encodeWithSignature("offices(address)", alice), malformed);
+        _expectFailure(MoonRewards.PostOfficeUnavailable.selector, _voucher(alice, 500 ether, 2), signerKey, alice);
+        vm.clearMockedCalls();
+    }
+
+    function test_postOfficeOneWordBoolShapeIsStillAccepted() public {
+        _fundInitial();
+        BoolPostOfficeMock implementation = new BoolPostOfficeMock();
+        vm.etch(address(postOffice), address(implementation).code);
+        BoolPostOfficeMock boolOffice = BoolPostOfficeMock(address(postOffice));
+        boolOffice.setOffice(alice, true);
+        (, bytes memory data) = address(postOffice).staticcall(abi.encodeWithSignature("offices(address)", alice));
+        assertEq(data.length, 32);
+        _claim(alice, 500 ether, 1);
+        boolOffice.setOffice(alice, false);
         _expectFailure(MoonRewards.PostOfficeRequired.selector, _voucher(alice, 500 ether, 2), signerKey, alice);
     }
 

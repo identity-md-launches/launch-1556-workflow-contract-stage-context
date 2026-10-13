@@ -11,9 +11,49 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "open",
         "type": "bool",
         "internalType": "bool"
+      },
+      {
+        "name": "tier",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "onDuty",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "routesUsed",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "lastUpgrade",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "referrer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "power",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "rewardDebt",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "pending",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"

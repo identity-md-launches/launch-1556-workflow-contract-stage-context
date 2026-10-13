@@ -9,14 +9,15 @@ Validated locally on 2026-10-13 with Foundry 1.8.3 and the pinned Solidity 0.8.2
 | Check | Result |
 | --- | --- |
 | `forge build` | Passed from clean artifacts, no compiler errors |
-| `forge test` | 70 tests passed, no failures or skips |
-| Tests offline, empty process environment, four threads | Passed, 70 tests |
+| `forge test` | 72 tests passed, no failures or skips |
+| Tests offline, empty process environment, four threads | Passed, 72 tests |
+| Reviewer proof `Proof_f77592622387.t.sol` (copied to scratch) | Failed 2/2 before the PostOffice fix, passes 2/2 after |
 | Stateful invariant campaign | Four properties; 128 runs × 96 calls = 12,288 calls; no handler reverts |
 | `forge fmt --check` | Passed |
 | `python3 tools/export_abi.py --check` | All five ABI exports match compiler output |
 | Supplied protected project/token checks | All nine passed, no skips |
 
-Foundry groups the four invariant properties into one reported test; the suite also contains 69 ordinary/fuzz tests. Fuzz tests run 256 examples each. The invariant model exercises expected application reverts using low-level calls and verifies their state rollback; `fail_on_revert = true` means an unexpected revert in the **handler** fails the campaign rather than being discarded.
+Foundry groups the four invariant properties into one reported test; the suite also contains 71 ordinary/fuzz tests. Fuzz tests run 256 examples each. The invariant model exercises expected application reverts using low-level calls and verifies their state rollback; `fail_on_revert = true` means an unexpected revert in the **handler** fails the campaign rather than being discarded.
 
 The supplied protected tests were copied unmodified into temporary `test/scratch/` and run against actual compiled creation bytecode with constructor arguments and CREATE2 predictions generated for an isolated local factory fixture. Their required environment inputs were confined to that subprocess. Those temporary test copies were removed; delivered tests require neither environment input nor the pinned `.imd/reads/` files. Local floor checks do not substitute for the verifier's run against the eventual signed manifest.
 
@@ -40,7 +41,8 @@ All deployable creation bytecodes have empty library link references. Constructo
 | Permanent deposits; no owner transfer/recovery/upgrade/constants setters | `test_noWithdrawalRecoveryApprovalUpgradeOrConstantSetters`, source review of the only payout site |
 | Named-player claims; every signed field; expiration and bounds | Reward claim, mutation, signature-domain and amount-bound tests |
 | Nonce replay across players, days, signer rotation | `test_eachNoncePaysOnceAcrossPlayersDaysAndSignerRotation` |
-| PostOffice open/closed/missing/reverting/malformed | Both PostOffice test groups |
+| PostOffice open/closed/missing/reverting/malformed | PostOffice test groups; the fixture returns the live 288-byte struct shape |
+| PostOffice first-word read: live struct shape and one-word bool shape | `test_postOfficeLiveStructShapeIsReadFromItsFirstWord`, `test_postOfficeOneWordBoolShapeIsStillAccepted` |
 | Wallet cap, one-wei boundary, UTC midnight | Wallet cap and UTC boundary tests |
 | Global cap | 50 players × 10 missions × 2,000 MOON, followed by rejection and next-day success |
 | Rotation and pause cannot move pool funds | Rotation and pause/resume tests; independent invariant model |
@@ -75,7 +77,7 @@ Time-changing tests use `vm.getBlockTimestamp()` instead of relying on the compi
 - **Pool custody:** `MoonRewards.claim` contains the only outgoing MOON transfer, always to the verified voucher player. There is no allowance granted from the pool, arbitrary call, withdrawal, rescue, ownership transfer or upgrade route. `fund` pulls exclusively from its caller and grants no redemption rights.
 - **Authorization:** The explicit owner is immutable. Reward administration consists only of signer rotation and claim pause/unpause. The shop owner can edit catalog terms and metadata, but cannot redirect primary payments, change royalties, freely mint or seize user inventory. Constructor ownership is never inferred from `msg.sender` or `tx.origin`.
 - **Accounting and callbacks:** Nonces and paid totals update before payout. Purchase counters update before payment and mint callbacks. Both funding routes, claim, both purchase routes and catalog edits use a nonreentrancy guard. A failed token transfer, recycler or receiver reverts all state and all previous transfers in that transaction. Token inflows check exact balance deltas; the production asset is the fixed, non-rebasing LaunchToken.
-- **Signatures:** OpenZeppelin EIP712 and ECDSA handle domain hashing and canonical recovery. Global consumed nonces survive rotation/day changes. The PostOffice check is a `STATICCALL` to the specified constant address and rejects any non-canonical boolean response.
+- **Signatures:** OpenZeppelin EIP712 and ECDSA handle domain hashing and canonical recovery. Global consumed nonces survive rotation/day changes. The PostOffice check is a `STATICCALL` to the specified constant address; it requires at least one returned word and reads the first word (`open` of the live nine-field `Office` struct) as a canonical boolean, rejecting anything else. An earlier revision demanded exactly 32 bytes and would have refused every live response; the independent review reported this and the fix is covered by the live-shape tests.
 - **Dependencies and arithmetic:** Dependencies cannot be replaced after deployment. MoonShop checks live dependency code and that rewards uses its token before charging. The split adds exactly to cost, including odd wei. Limits use lifetime counters, and checked arithmetic prevents overflow-based free purchases. Shop approvals to rewards are exact and cleared after use.
 
 Foundry's build linter reports conservative reentrancy/event-order warnings at external calls and the intentional timestamp-based expiry check. The external mutation paths are enclosed by OpenZeppelin `nonReentrant`, which enters the guard before the call and clears it on return; the reported `_status` write after a call is that guard reset. Claim/quote read calls are static. Callback tests verify rejection, and failure tests verify reverted logs/accounting cannot survive. UTC timestamps are the requested time source and are never used as randomness. Warnings have not been globally suppressed. Slither, Mythril, formal verification and a live-chain fork were not run.
@@ -84,7 +86,7 @@ Foundry's build linter reports conservative reentrancy/event-order warnings at e
 
 The initial threshold is a one-time activation, mission bounds are inclusive, voucher nonces are global, zero wallet limit means unlimited, and the odd payment wei is recycled. These implementation choices are explicit in the README and ABI guide. There is no separately deployable companion contract; MoonShop is the collection.
 
-The game server is trusted to certify real missions and protect its EOA signer. An owner can select a malicious signer and authorize false gameplay within the immutable constraints. Signatures prove authorization, not physical travel. The owner can censor claims through pause or signer selection; loss of these keys can strand funds. PostOffice availability and truthfulness are external dependencies, unverified against live chain state here. Its fixed address cannot be repaired in place.
+The game server is trusted to certify real missions and protect its EOA signer. An owner can select a malicious signer and authorize false gameplay within the immutable constraints: at most 20,000 MOON per open-office wallet per UTC day and 1,000,000 MOON per UTC day overall, so roughly 700 days to drain a 700,000,000 MOON pool at the global cap. The README states this bound as the trust assumption behind "nobody can redirect the pool". Signatures prove authorization, not physical travel. The owner can censor claims through pause or signer selection; loss of these keys can strand funds. PostOffice availability and truthfulness are external dependencies. Its return shape (nine-word `Office` struct, `open` first) comes from the independent review's live `cast call`; this machine had no network, so it was not re-observed here. Its fixed address cannot be repaired in place.
 
 The creator's complete deposit is an operational promise. The threshold checks actual pool funding, not which account funded it. The frontend must separately show the creator balance and authentic funding receipt; those values cannot be fabricated before deployment. Metadata remains editable; secondary marketplaces choose whether to pay royalties. Direct accidental transfers to contracts are not recoverable.
 

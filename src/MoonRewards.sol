@@ -188,10 +188,14 @@ contract MoonRewards is EIP712, Pausable, ReentrancyGuard {
     }
 
     function _requirePostOffice(address player) private view {
-        // Explicitly fail closed on a missing contract, a revert or a malformed/non-boolean response.
+        // The live PostOffice getter returns its whole Office struct (nine words); `open` is the first word.
+        // Only that word is read, so a one-word bool response is accepted too. Fail closed on a missing
+        // contract, a revert, a short response or a non-canonical boolean in the first word.
         (bool success, bytes memory data) = POST_OFFICE.staticcall(abi.encodeCall(IPostOffice.offices, (player)));
-        if (!success || data.length != 32) revert PostOfficeUnavailable();
-        uint256 status = abi.decode(data, (uint256));
+        if (!success || data.length < 32) revert PostOfficeUnavailable();
+        // Truncating to the first 32 bytes is the point: that word is `open`; the other struct fields are ignored.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint256 status = uint256(bytes32(data));
         if (status > 1) revert PostOfficeUnavailable();
         if (status == 0) revert PostOfficeRequired();
     }

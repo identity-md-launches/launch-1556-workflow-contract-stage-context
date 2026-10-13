@@ -6,7 +6,30 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MoonShop} from "../../src/MoonShop.sol";
 
+/// @dev Mirrors the return shape of the live PostOffice on chain 4663: `offices` is the public getter of
+/// `mapping(address => Office)`, so a call returns nine ABI words (288 bytes) whose first word is `open`.
 contract PostOfficeMock {
+    struct Office {
+        bool open;
+        uint8 tier;
+        uint8 onDuty;
+        uint16 routesUsed;
+        uint64 lastUpgrade;
+        address referrer;
+        uint256 power;
+        uint256 rewardDebt;
+        uint256 pending;
+    }
+
+    mapping(address => Office) public offices;
+
+    function setOffice(address player, bool open) external {
+        offices[player] = Office(open, 3, 6, 8, uint64(block.timestamp), address(0), 0x90c, 1 ether, 1);
+    }
+}
+
+/// @dev The one-word shape the earlier mock had; kept to show the check does not depend on the struct length.
+contract BoolPostOfficeMock {
     mapping(address => bool) public offices;
 
     function setOffice(address player, bool open) external {

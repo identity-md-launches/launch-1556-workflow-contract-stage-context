@@ -35,6 +35,7 @@ Read these at a consistent recent block, without requesting a wallet connection:
 | Pool balance | `LaunchToken.balanceOf(MoonRewards)` |
 | Initial funding status | `MoonRewards.isFunded()`; false means **NOT FUNDED** |
 | Claims ready | Funding status, nonzero `voucherSigner()`, `paused() == false`, live PostOffice check, caps and enough balance |
+| Player has an open office | First returned field (`open`) of `PostOffice.offices(player)` using `docs/abi/IPostOffice.json`; the getter returns the whole nine-field `Office` struct |
 | Current day | `MoonRewards.currentDay()` / block timestamp, never block number |
 | Paid today / cap | `dailyPaid(currentDay())` / `GLOBAL_DAILY_CAP()` |
 | Player paid today / cap | `walletDailyPaid(player, currentDay())` / `WALLET_DAILY_CAP()` |
