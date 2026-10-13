@@ -1,0 +1,26 @@
+{
+  "kind": "evm_project",
+  "token": {
+    "contract": "LaunchToken",
+    "name": "MOON",
+    "symbol": "MOON",
+    "decimals": 18
+  },
+  "contracts": [
+    {
+      "contract": "MoonRewards",
+      "constructorArgs": ["$token", "$owner"]
+    },
+    {
+      "contract": "MoonShop",
+      "constructorArgs": ["$token", "$contract:MoonRewards", "$owner"]
+    }
+  ],
+  "pool": {
+    "pairedCurrency": "0x5f7bb59365ce557c26dbcaa4ee9d39a4b95b7127",
+    "fee": 12500,
+    "tickSpacing": 60,
+    "initialPrice": "79228162514264337593543950336"
+  },
+  "notes": "MoonRewards accepts permanent MOON deposits and pays verified mission claims subject to immutable daily caps and the post office requirement. MoonShop implements the Courier Companions ERC-1155 collection and recycles shop payments into MoonRewards after sending half, rounded down, to the burn address. Both application owners and the shop's 5% royalty recipient resolve to $owner. The owner configures the game-server voucher signer and shop catalog after launch; claims require initial funding. No factory initialization calls are required. The factory supplies the LP, MerkleDistributor and initialization-only pool guard. Services handle publication, attestation, admission and deployment."
+}
